@@ -2,6 +2,7 @@ import P from 'bluebird'
 import Debug from 'debug'
 import {basename} from 'path'
 import juice from 'juice'
+import cheerio from 'cheerio'
 import isFunction from 'lodash/isFunction'
 import assign from 'lodash/assign'
 import {ensureDirectory, readContents, renderFile} from './util'
@@ -103,7 +104,21 @@ export default class EmailTemplate {
       if (this.options.juiceOptions) {
         debug('Using juice options ', this.options.juiceOptions)
       }
-      return juice.inlineContent(html, style, this.options.juiceOptions || {})
+      let rendered = juice.inlineContent(html, style, this.options.juiceOptions || {})
+
+      // inline style into rendered html
+      var $ = cheerio.load(rendered);
+      var $appendTo = null;
+      if (this.options.juiceOptions.insertPreservedExtraCss !== true) {
+        $appendTo = $(options.insertPreservedExtraCss)
+      } else {
+        $appendTo = $('head')
+        if (!$appendTo.length) $appendTo = $('body')
+        if (!$appendTo.length) $appendTo = $.root()
+      }
+      $appendTo.first().append('<style>' + style + '</style>')
+
+      return $.html()
     })
     .tap(() => debug('Finished rendering HTML'))
     .nodeify(callback)
